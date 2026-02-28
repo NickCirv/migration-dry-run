@@ -1,0 +1,32 @@
+{
+  "name": "migration-dry-run",
+  "version": "1.0.0",
+  "description": "Predict migration impact before you run it. Lock duration, data loss risk, rollback feasibility.",
+  "main": "src/index.js",
+  "bin": {
+    "migration-dry-run": "./bin/dryrun.js"
+  },
+  "scripts": {
+    "test": "node bin/dryrun.js --help"
+  },
+  "keywords": [
+    "migration",
+    "database",
+    "sql",
+    "prisma",
+    "knex",
+    "cli",
+    "safety",
+    "devops"
+  ],
+  "author": "Nicholas Ashkar",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^11.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "type": "module"
+}
