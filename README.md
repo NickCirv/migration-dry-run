@@ -1,3 +1,5 @@
+![Banner](banner.svg)
+
 # migration-dry-run
 
 **Don't run that migration until you've read this.**
