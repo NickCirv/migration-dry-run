@@ -1,28 +1,21 @@
-![Banner](banner.svg)
+![migration-dry-run — predict lock duration, data loss risk, and rollback feasibility before running a database migration](assets/banner.png)
 
-# migration-dry-run
+<div align="center">
 
-**Don't run that migration until you've read this.**
+**Predict migration impact before you run it. Because staging never has production data volumes.**
 
-[![npx migration-dry-run](https://img.shields.io/badge/npx-migration--dry--run-blue)](https://npmjs.com/package/migration-dry-run)
-[![zero-config](https://img.shields.io/badge/zero--config-yes-green)](#)
-[![supports](https://img.shields.io/badge/supports-SQL%20%7C%20Prisma%20%7C%20Knex%20%7C%20Drizzle-purple)](#supported-formats)
+![license](https://img.shields.io/badge/license-MIT-blue?labelColor=0B0A09)
+![node](https://img.shields.io/badge/node-%3E%3D18-brightgreen?labelColor=0B0A09)
+![formats](https://img.shields.io/badge/formats-SQL%20%7C%20Prisma%20%7C%20Knex%20%7C%20Drizzle-FB923C?labelColor=0B0A09)
+![operations](https://img.shields.io/badge/SQL%20operations-14%20classified-FB923C?labelColor=0B0A09)
 
-Predict migration impact before you run it. Analyzes SQL migration files and estimates table lock duration, rows affected, index rebuild time, rollback complexity, and overall risk. Supports raw SQL, Prisma, Drizzle, and Knex migrations.
-
----
-
-## The Problem
-
-> You ran a migration on production. It locked the `users` table for 8 minutes. 50,000 requests failed. The postmortem was awkward.
-
-The issue wasn't the migration itself — it was that nobody predicted what it would do at scale. Staging never has production data volumes. You can't reproduce the lock duration there.
-
-`migration-dry-run` estimates the impact before you touch production.
+</div>
 
 ---
 
-## Sample Output
+You ran a migration on production. It locked the `users` table for 8 minutes. 50,000 requests failed. The postmortem was awkward.
+
+The problem wasn't the migration — it was that nobody predicted what it would do at scale. `migration-dry-run` analyzes every operation in your migration file and tells you: lock type, risk level, duration estimate (scaled to your real row counts), and the exact rollback SQL — before you touch production.
 
 ```
   MIGRATION-DRY-RUN  v1.0.0
@@ -48,10 +41,7 @@ The issue wasn't the migration itself — it was that nobody predicted what it w
      💡 Consider CREATE INDEX CONCURRENTLY to avoid locking reads/writes.
 
   ── Impact Summary ────────────────────────────────────────────────
-  Total operations: 4
-  Safe:       1
-  Caution:    2
-  Dangerous:  1
+  Total operations: 4  │  Safe: 1  │  Caution: 2  │  Dangerous: 1
   Est. total lock time: ~500ms
 
   Risk: DANGEROUS — 1 irreversible or high-risk operation detected
@@ -62,7 +52,7 @@ The issue wasn't the migration itself — it was that nobody predicted what it w
   ~  Op 2: ADD COLUMN (NOT NULL, default) [orders]
        ALTER TABLE orders DROP COLUMN total;
   ✗  Op 3: DROP COLUMN [orders]
-       CANNOT ROLLBACK — Column data is permanently destroyed. Cannot recover without a backup.
+       CANNOT ROLLBACK — data is permanently destroyed.
   ✓  Op 4: CREATE INDEX [orders]
        DROP INDEX idx_orders_user_id;
 
@@ -70,9 +60,49 @@ The issue wasn't the migration itself — it was that nobody predicted what it w
      Consider breaking into smaller, safer steps.
 ```
 
----
+## Install
 
-## What It Predicts
+No npm account required — runs straight from GitHub:
+
+```bash
+npx github:NickCirv/migration-dry-run migration.sql
+```
+
+## Usage
+
+```bash
+# Analyze a single SQL migration
+npx github:NickCirv/migration-dry-run migration.sql
+
+# Analyze a directory of SQL files
+npx github:NickCirv/migration-dry-run ./migrations/
+
+# Prisma migrations
+npx github:NickCirv/migration-dry-run --prisma ./prisma/migrations/
+
+# Knex migrations
+npx github:NickCirv/migration-dry-run --knex ./migrations/
+
+# Provide real production row counts for duration estimates
+npx github:NickCirv/migration-dry-run migration.sql --rows users:500000,orders:1200000
+
+# JSON output (for CI/scripting)
+npx github:NickCirv/migration-dry-run migration.sql --json
+
+# CI mode — exit code 1 on any DANGEROUS operation
+npx github:NickCirv/migration-dry-run migration.sql --strict
+```
+
+| Flag | Description |
+|------|-------------|
+| `[path]` | SQL file or migrations directory (defaults to current directory) |
+| `--prisma` | Parse Prisma migration directories (`migration.sql` in each timestamped subdir) |
+| `--knex` | Parse Knex JS migration files |
+| `--rows <tables>` | Row count hints: `users:500000,orders:1000000` |
+| `--json` | Output as JSON for CI/scripting |
+| `--strict` | Exit code 1 if any DANGEROUS operation detected |
+
+## What it predicts
 
 | Operation | Lock Type | Risk |
 |-----------|-----------|------|
@@ -87,79 +117,24 @@ The issue wasn't the migration itself — it was that nobody predicted what it w
 | CREATE INDEX CONCURRENTLY | None | Safe |
 | DROP INDEX | Brief | Caution |
 | ADD FOREIGN KEY | Full table scan | Caution |
+| ADD CONSTRAINT | Varies | Caution |
 | DROP TABLE | Brief | **Dangerous** |
-| UPDATE (no WHERE) | Full table | **Dangerous** |
-| DELETE (no WHERE) | Full table | **Dangerous** |
+| UPDATE / DELETE (no WHERE) | Full table | **Dangerous** |
 
----
+## Row-count-scaled estimates
 
-## Installation
-
-```bash
-# Run without installing
-npx migration-dry-run migration.sql
-
-# Or install globally
-npm install -g migration-dry-run
-```
-
----
-
-## Usage
+Staging never reflects production data volumes. With `--rows`, duration estimates use your actual table sizes:
 
 ```bash
-# Analyze a single SQL migration
-migration-dry-run migration.sql
-
-# Analyze a directory of SQL files
-migration-dry-run ./migrations/
-
-# Analyze Prisma migrations
-migration-dry-run --prisma ./prisma/migrations/
-
-# Analyze Knex migrations
-migration-dry-run --knex ./migrations/
-
-# Provide row counts for duration estimation
-migration-dry-run migration.sql --rows users:500000,orders:1200000
-
-# JSON output (for CI/scripting)
-migration-dry-run migration.sql --json
-
-# CI mode — exit code 1 on DANGEROUS risk
-migration-dry-run migration.sql --strict
+npx github:NickCirv/migration-dry-run migration.sql --rows users:2000000,orders:8000000
 ```
 
----
-
-## Row Count Estimation
-
-Staging environments never reflect production data volumes. With `--rows`, you can tell the tool how big your tables actually are:
-
-```bash
-migration-dry-run migration.sql --rows users:2000000,orders:8000000
-```
-
-Duration estimates:
+Duration model:
 - Full table rewrite: ~1ms per 1,000 rows (500K rows ≈ 500ms lock)
 - Index creation: ~2ms per 1,000 rows
 - Foreign key validation: ~1ms per 1,000 rows
 
----
-
-## Rollback Analysis
-
-For every operation, the tool tells you:
-
-- Can it be reversed?
-- What's the reverse SQL?
-- Is there data loss risk?
-
-Operations marked `CANNOT ROLLBACK` need a backup strategy before running.
-
----
-
-## Supported Formats
+## Supported formats
 
 | Format | Flag | Notes |
 |--------|------|-------|
@@ -168,21 +143,14 @@ Operations marked `CANNOT ROLLBACK` need a backup strategy before running.
 | Knex | `--knex` | Parses JS migration files, schema builder API |
 | Drizzle | (default) | Drizzle generates standard SQL — use default mode |
 
----
-
-## CI Integration
-
-Add to your CI pipeline to block dangerous migrations:
+## CI integration
 
 ```yaml
-# GitHub Actions
 - name: Dry run migration
-  run: npx migration-dry-run ./migrations/ --strict
+  run: npx github:NickCirv/migration-dry-run ./migrations/ --strict
 ```
 
-`--strict` exits with code 1 if any operation is rated DANGEROUS. Safe and CAUTION operations pass.
-
----
+`--strict` exits with code 1 on any DANGEROUS operation. Safe and CAUTION operations pass.
 
 ## Programmatic API
 
@@ -194,20 +162,18 @@ const { operations, risk } = await analyze(`
   ALTER TABLE orders DROP COLUMN legacy_status;
 `, { users: 500000, orders: 1200000 });
 
-console.log(risk.overall); // 'dangerous'
+console.log(risk.overall);       // 'dangerous'
 console.log(risk.hasIrreversible); // true
 ```
 
----
+## What it is NOT
 
-## Why Not Just Test on Staging?
-
-Staging never has production data volumes. A migration that takes 2 seconds on staging can take 8 minutes on production with 10 million rows.
-
-`migration-dry-run` estimates impact at scale using your actual row counts — before you commit to running it.
+- **Not a migration runner.** It reads and analyzes migration files — it never connects to a database or executes SQL.
+- **Not a guarantee.** Lock duration estimates are heuristic (~1ms/1K rows). Real-world timing depends on hardware, Postgres version, and concurrent load. Use as a planning signal, not a production SLA.
+- **Not a replacement for a backup.** Operations flagged `CANNOT ROLLBACK` require a pre-migration snapshot regardless of what this tool says.
 
 ---
 
-## License
-
-MIT — Nicholas Ashkar, 2026
+<div align="center">
+<sub>Node 18+ · MIT · SQL · Prisma · Knex · Drizzle · by <a href="https://github.com/NickCirv">NickCirv</a></sub>
+</div>
